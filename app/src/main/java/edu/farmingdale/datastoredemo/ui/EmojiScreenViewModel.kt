@@ -1,13 +1,16 @@
 package edu.farmingdale.datastoredemo.ui
 
+import android.app.Application
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.State
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import edu.farmingdale.datastoredemo.R
 import edu.farmingdale.datastoredemo.EmojiReleaseApplication
+import edu.farmingdale.datastoredemo.R
 import edu.farmingdale.datastoredemo.data.local.UserPreferencesRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,29 +22,54 @@ import kotlinx.coroutines.launch
 class EmojiScreenViewModel(
     private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
-    // UI states access for various
+
+    // State for managing theme (light/dark mode)
+    private val _isDarkMode = mutableStateOf(false) // MutableState to store the theme
+    val isDarkMode: State<Boolean> = _isDarkMode
+
+    init {
+        // Load the saved theme preference from DataStore on initialization
+        loadThemePreference()
+    }
+
+    // Load the theme preference from DataStore
+    private fun loadThemePreference() {
+        viewModelScope.launch {
+            // Fetch the theme preference from DataStore and set it
+            _isDarkMode.value = userPreferencesRepository.loadThemePerference()
+        }
+    }
+
+    // Function to toggle between light and dark mode
+    fun toggleTheme() {
+        val newTheme = !_isDarkMode.value
+        _isDarkMode.value = newTheme
+        // Save the theme preference to DataStore
+        saveThemePreference(newTheme)
+    }
+
+    // Save the theme preference in DataStore
+    private fun saveThemePreference(isDarkMode: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.saveThemePreference(isDarkMode)
+        }
+    }
+
+    // UI state handling layout type (linear/grid) -- Unchanged
     val uiState: StateFlow<EmojiReleaseUiState> =
         userPreferencesRepository.isLinearLayout.map { isLinearLayout ->
             EmojiReleaseUiState(isLinearLayout)
         }.stateIn(
             scope = viewModelScope,
-            // Flow is set to emits value for when app is on the foreground
-            // 5 seconds stop delay is added to ensure it flows continuously
-            // for cases such as configuration change
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = EmojiReleaseUiState()
         )
 
-    /*
-     * [selectLayout] change the layout and icons accordingly and
-     * save the selection in DataStore through [userPreferencesRepository]
-     */
     fun selectLayout(isLinearLayout: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.saveLayoutPreference(isLinearLayout)
         }
     }
-
 
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
@@ -52,6 +80,7 @@ class EmojiScreenViewModel(
         }
     }
 }
+
 
 /*
  * Data class containing various UI States for Emoji Release screens
